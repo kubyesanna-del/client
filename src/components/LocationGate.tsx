@@ -1,6 +1,6 @@
-import React, { ReactNode } from 'react';
-import { motion } from 'framer-motion';
-import { MapPin, Navigation, Loader2, Settings } from 'lucide-react';
+import React, { ReactNode, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { MapPin, Loader2, X } from 'lucide-react';
 import { useLocation } from '../contexts/LocationContext';
 
 interface LocationGateProps {
@@ -8,10 +8,13 @@ interface LocationGateProps {
 }
 
 /**
- * Gates the application behind device location state, Bolt/Uber style:
- *  - Permission denied / unsupported  -> full-screen blocking message + retry.
- *  - Location services (GPS) disabled -> blocking modal + "open settings".
- *  - Otherwise renders the app (individual pages handle their own loading).
+ * Non-blocking location indicator.
+ *
+ * The app ALWAYS renders — navigation is never interrupted. When location
+ * permission is denied/unsupported or GPS cannot produce a fix, a small
+ * dismissible chip appears in the top-left corner so the user can re-enable it
+ * at their convenience. While the first fix is still being acquired, a subtle
+ * "locating" chip is shown instead.
  */
 export const LocationGate: React.FC<LocationGateProps> = ({ children }) => {
   const {
@@ -20,97 +23,78 @@ export const LocationGate: React.FC<LocationGateProps> = ({ children }) => {
     loading,
     latitude,
     longitude,
-    requestPermission,
-    openLocationSettings
+    requestPermission
   } = useLocation();
 
-  const hasFix = latitude !== null && longitude !== null;
+  const [dismissed, setDismissed] = useState(false);
 
-  // 1. Permission denied or unsupported -> full-screen required message.
-  if (permissionStatus === 'denied' || permissionStatus === 'unsupported') {
-    const unsupported = permissionStatus === 'unsupported';
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 p-6">
+  const hasFix = latitude !== null && longitude !== null;
+  const needsAttention =
+    permissionStatus === 'denied' ||
+    permissionStatus === 'unsupported' ||
+    !gpsEnabled;
+  const locating = loading && !hasFix && !needsAttention;
+
+  const renderChip = () => {
+    if (needsAttention && !dismissed) {
+      const unsupported = permissionStatus === 'unsupported';
+      return (
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          key="needs-attention"
+          initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-sm w-full bg-white rounded-2xl shadow-lg p-8 text-center"
+          exit={{ opacity: 0, y: -8 }}
+          className="flex items-center gap-2 rounded-full bg-white shadow-lg ring-1 ring-black/5 pl-3 pr-2 py-1.5"
         >
-          <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-[#5B2EFF]/10 flex items-center justify-center">
-            <MapPin className="text-[#5B2EFF]" size={32} />
-          </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">
-            Location access required
-          </h1>
-          <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-            {unsupported
-              ? 'This device or browser does not support location services, which are required to request rides and deliveries.'
-              : 'We need access to your location to set your pick-up point and match you with nearby drivers. Please allow location access to continue.'}
-          </p>
+          <MapPin className="text-[#5B2EFF] shrink-0" size={16} />
+          <span className="text-xs font-medium text-gray-700 max-w-[150px] truncate">
+            {unsupported ? 'Location unavailable' : 'Location is off'}
+          </span>
           {!unsupported && (
             <button
               onClick={requestPermission}
-              className="w-full bg-[#5B2EFF] text-white font-semibold rounded-xl py-3 mb-3 hover:bg-[#4a25cc] transition-colors"
+              className="text-xs font-semibold text-[#5B2EFF] hover:underline"
             >
-              Allow location access
+              Enable
             </button>
           )}
-          <p className="text-xs text-gray-400 leading-relaxed">
-            If the prompt does not appear, enable location for this site in your
-            browser or device settings, then tap the button again.
-          </p>
+          <button
+            onClick={() => setDismissed(true)}
+            aria-label="Dismiss location notice"
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X size={14} />
+          </button>
         </motion.div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // 2. Permission granted (or pending) but GPS / location services are off.
-  if (!gpsEnabled) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
+    if (locating) {
+      return (
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-sm w-full bg-white rounded-2xl shadow-xl p-8 text-center"
+          key="locating"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          className="flex items-center gap-2 rounded-full bg-white/90 backdrop-blur shadow-md ring-1 ring-black/5 px-3 py-1.5"
         >
-          <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-amber-50 flex items-center justify-center">
-            <Navigation className="text-amber-500" size={30} />
-          </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">
-            Location Services Required
-          </h1>
-          <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-            Please enable GPS to continue.
-          </p>
-          <button
-            onClick={openLocationSettings}
-            className="w-full bg-[#5B2EFF] text-white font-semibold rounded-xl py-3 mb-3 flex items-center justify-center gap-2 hover:bg-[#4a25cc] transition-colors"
-          >
-            <Settings size={18} />
-            Open location settings
-          </button>
-          <button
-            onClick={requestPermission}
-            className="w-full text-[#5B2EFF] font-medium rounded-xl py-2 hover:bg-gray-50 transition-colors"
-          >
-            Try again
-          </button>
+          <Loader2 className="text-[#5B2EFF] animate-spin shrink-0" size={14} />
+          <span className="text-xs font-medium text-gray-600">Locating…</span>
         </motion.div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // 3. First-time acquisition: show a brief splash until we have a fix so pages
-  //    do not flash with empty pick-up fields. Subsequent live updates never
-  //    block the UI.
-  if (loading && !hasFix && permissionStatus !== 'granted') {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-50">
-        <Loader2 className="w-10 h-10 text-[#5B2EFF] animate-spin mb-4" />
-        <p className="text-sm text-gray-600 font-medium">Finding your location...</p>
-      </div>
-    );
-  }
+    return null;
+  };
 
-  return <>{children}</>;
+  return (
+    <>
+      <div className="fixed top-3 left-3 z-[60] pointer-events-none">
+        <div className="pointer-events-auto">
+          <AnimatePresence>{renderChip()}</AnimatePresence>
+        </div>
+      </div>
+      {children}
+    </>
+  );
 };
