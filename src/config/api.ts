@@ -9,7 +9,12 @@ export const API_BASE =
   'https://aletwend-render-backend.onrender.com';
 
 /**
- * Generic POST helper for API calls
+ * Generic POST helper for API calls.
+ *
+ * Reads the response as text first and parses it defensively so an empty body
+ * (e.g. a 204, a cold-started backend, or an HTML error page) never throws the
+ * cryptic "SyntaxError: Unexpected end of input" that crashes callers. On a
+ * non-OK status or unparseable body it throws a descriptive Error instead.
  */
 export async function apiPost<T = any>(path: string, data: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -19,7 +24,25 @@ export async function apiPost<T = any>(path: string, data: any): Promise<T> {
     },
     body: JSON.stringify(data)
   });
-  return res.json();
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new Error(
+      `Request to ${path} failed with status ${res.status}: ${text.slice(0, 200) || res.statusText}`
+    );
+  }
+
+  // Empty body — return null instead of throwing on JSON.parse('').
+  if (!text.trim()) {
+    return null as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Request to ${path} returned a non-JSON response.`);
+  }
 }
 
 // API Endpoints

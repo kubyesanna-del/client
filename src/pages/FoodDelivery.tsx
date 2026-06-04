@@ -178,7 +178,7 @@ export function FoodDelivery() {
       
       console.log('[v0] Delivery options response:', response);
       
-      const options = response.data || response || [];
+      const options = response?.data || response || [];
       const optionsArray = Array.isArray(options) ? options : [];
       
       // Filter options by service type before setting state

@@ -159,7 +159,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
       
       console.log('[v0] Ride options response:', response);
       
-      const options = response.data || response || [];
+      const options = response?.data || response || [];
       
       // Handle array response directly or wrapped in data property
       const optionsArray = Array.isArray(options) ? options : [];
