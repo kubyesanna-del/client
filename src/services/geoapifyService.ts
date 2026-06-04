@@ -1,7 +1,7 @@
 /**
  * Geoapify Address Autocomplete Service
  * Replaces mock address suggestions with real Geoapify API calls
- * Restricted to Zambia only
+ * Zambia and South Africa
  */
 
 const GEOAPIFY_API_KEY = '8d0450d96b5748e89e46afaaf976f890';
@@ -76,7 +76,7 @@ export const saveRecentAddress = (address: GeoapifyAddress): void => {
 
 /**
  * Search for addresses using Geoapify Autocomplete API
- * Restricted to Zambia only
+ * Zambia and South Africa
  */
 export const searchAddresses = async (
   query: string,
@@ -87,7 +87,7 @@ export const searchAddresses = async (
   }
 
   try {
-    // Build URL with Zambia filter
+    // Build URL with Zambia and South Africa filter
     let url = `${GEOAPIFY_BASE_URL}?text=${encodeURIComponent(query)}&filter=countrycode:zm,za&apiKey=${GEOAPIFY_API_KEY}&limit=10`;
     
     // Add bias towards user location if available
@@ -128,7 +128,7 @@ export const searchAddresses = async (
       return {
         id: props.place_id || `geoapify-${index}-${Date.now()}`,
         address: props.formatted || props.address_line1 || query,
-        description: descriptionParts.join(', ') || 'Zambia',
+        description: descriptionParts.join(', ') || 'Zambia and South Africa',
         distance,
         coords: {
           lat: props.lat,
@@ -177,7 +177,7 @@ export const reverseGeocode = async (
     return {
       id: props.place_id || `reverse-${Date.now()}`,
       address: props.formatted || `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-      description: descriptionParts.join(', ') || 'Zambia',
+      description: descriptionParts.join(', ') || 'Zambia and South Africa',
       coords: { lat, lng }
     };
   } catch (error) {

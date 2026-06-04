@@ -65,9 +65,17 @@ const GEOCODE_DISTANCE_THRESHOLD_KM = 0.05; // ~50 meters
 // Minimum time (ms) between reverse-geocode API calls regardless of movement.
 const GEOCODE_TIME_THROTTLE_MS = 15000; // 15 seconds
 
-const GEO_OPTIONS: PositionOptions = {
+// Stage 1: fast/cached position so the UI is never blocked while waiting.
+const GEO_OPTIONS_FAST: PositionOptions = {
+  enableHighAccuracy: false,
+  timeout: 5000,
+  maximumAge: 60000 // Accept a position up to 60s old for instant display
+};
+
+// Stage 2: accurate live position via the watcher.
+const GEO_OPTIONS_ACCURATE: PositionOptions = {
   enableHighAccuracy: true,
-  timeout: 15000,
+  timeout: 20000,
   maximumAge: 0
 };
 
@@ -87,6 +95,8 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   // Watcher + throttling refs (do not trigger re-renders).
   const watchIdRef = useRef<number | null>(null);
+  const startTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addressRef = useRef<string | null>(null);
   const lastGeocodeCoordsRef = useRef<Coordinates | null>(null);
   const lastGeocodeTimeRef = useRef<number>(0);
   const geocodeInFlightRef = useRef(false);
@@ -100,7 +110,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     const elapsed = now - lastGeocodeTimeRef.current;
 
     const shouldGeocode =
-      !address ||
+      !addressRef.current ||
       movedKm >= GEOCODE_DISTANCE_THRESHOLD_KM ||
       elapsed >= GEOCODE_TIME_THROTTLE_MS;
 
@@ -112,18 +122,20 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
     try {
       const result = await reverseGeocode(lat, lng);
-      if (result?.address) {
-        setAddress(result.address);
-      } else {
-        setAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-      }
+      const resolved = result?.address ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      addressRef.current = resolved;
+      setAddress(resolved);
     } catch {
       // Keep any previous address; fall back to coordinates if none.
-      setAddress(prev => prev ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      if (!addressRef.current) {
+        addressRef.current = fallback;
+        setAddress(fallback);
+      }
     } finally {
       geocodeInFlightRef.current = false;
     }
-  }, [address]);
+  }, []); // No deps — uses only refs and stable setters
 
   const handleSuccess = useCallback((position: GeolocationPosition) => {
     const { latitude: lat, longitude: lng, accuracy: acc } = position.coords;
@@ -166,7 +178,11 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
       return;
     }
 
-    // Clear any existing watch before starting a new one.
+    // Cancel any pending start and clear any existing watch before restarting.
+    if (startTimeoutRef.current !== null) {
+      clearTimeout(startTimeoutRef.current);
+      startTimeoutRef.current = null;
+    }
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
@@ -175,11 +191,25 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     setLoading(true);
     setError(null);
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      handleSuccess,
-      handleError,
-      GEO_OPTIONS
-    );
+    // Small delay so React StrictMode's dev unmount-remount cycle doesn't kill
+    // the watcher before it has had a chance to deliver a position.
+    startTimeoutRef.current = setTimeout(() => {
+      // Stage 1: quick/cached position so the UI isn't blocked.
+      navigator.geolocation.getCurrentPosition(
+        handleSuccess,
+        () => {
+          // Ignore fast-path errors — the accurate watcher handles them.
+        },
+        GEO_OPTIONS_FAST
+      );
+
+      // Stage 2: accurate live watcher.
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        handleSuccess,
+        handleError,
+        GEO_OPTIONS_ACCURATE
+      );
+    }, 50);
   }, [handleSuccess, handleError]);
 
   const requestPermission = useCallback(() => {
@@ -191,7 +221,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   const refresh = useCallback(() => {
     if (!('geolocation' in navigator)) return;
-    navigator.geolocation.getCurrentPosition(handleSuccess, handleError, GEO_OPTIONS);
+    navigator.geolocation.getCurrentPosition(handleSuccess, handleError, GEO_OPTIONS_ACCURATE);
   }, [handleSuccess, handleError]);
 
   const openLocationSettings = useCallback(() => {
@@ -250,6 +280,10 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     void init();
 
     return () => {
+      if (startTimeoutRef.current !== null) {
+        clearTimeout(startTimeoutRef.current);
+        startTimeoutRef.current = null;
+      }
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
