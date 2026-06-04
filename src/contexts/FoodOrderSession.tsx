@@ -37,34 +37,32 @@ const FoodOrderSessionContext = createContext<FoodOrderSessionContextType | unde
 
 const STORAGE_KEY = 'FOOD_ORDER_SESSION';
 
+// Safely read + parse the persisted session. Returns {} if storage is empty or
+// holds corrupt/partial JSON, so a bad value never throws
+// "SyntaxError: Unexpected end of input" during render.
+function readStoredSession(): any {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored || !stored.trim()) return {};
+    return JSON.parse(stored) ?? {};
+  } catch {
+    return {};
+  }
+}
+
 function FoodOrderSessionProviderInner({ children }: { children: React.ReactNode }) {
   const { orderSession } = useOrderSession();
-  const [currentLocationFoodIds, setCurrentLocationFoodIds] = useState<string[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const data = JSON.parse(stored);
-      return data.currentLocationFoodIds || [];
-    }
-    return [];
-  });
+  const [currentLocationFoodIds, setCurrentLocationFoodIds] = useState<string[]>(
+    () => readStoredSession().currentLocationFoodIds || []
+  );
 
-  const [stops, setStops] = useState<Stop[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const data = JSON.parse(stored);
-      return data.stops || [];
-    }
-    return [];
-  });
+  const [stops, setStops] = useState<Stop[]>(
+    () => readStoredSession().stops || []
+  );
 
-  const [deliveryLocation, setDeliveryLocation] = useState<string>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const data = JSON.parse(stored);
-      return data.deliveryLocation || '';
-    }
-    return '';
-  });
+  const [deliveryLocation, setDeliveryLocation] = useState<string>(
+    () => readStoredSession().deliveryLocation || ''
+  );
 
   const cartItems: FoodItem[] = (orderSession.cartItems || []).map(item => ({
     id: item.id,

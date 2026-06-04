@@ -39,8 +39,12 @@ export const OrderSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const hydrate = useCallback(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setOrderSession(JSON.parse(stored));
+    if (stored && stored.trim()) {
+      try {
+        setOrderSession(JSON.parse(stored));
+      } catch (error) {
+        console.error('Error hydrating order session:', error);
+      }
     }
   }, []);
 
