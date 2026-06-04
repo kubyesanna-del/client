@@ -47,6 +47,24 @@ export async function getProductsByStore(storeId: string): Promise<Product[]> {
   return fetchProductsByStore(storeId);
 }
 
+const ORDERS_KEY = 'ALETWENDE_ORDERS';
+
+/**
+ * Safely read the persisted orders array. Returns [] for missing, empty, or
+ * corrupt/truncated JSON so a bad localStorage value never throws
+ * "SyntaxError: Unexpected end of input".
+ */
+function readStoredOrders(): any[] {
+  try {
+    const stored = localStorage.getItem(ORDERS_KEY);
+    if (!stored || !stored.trim()) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Create a new order
  */
@@ -56,14 +74,14 @@ export async function createOrder(orderPayload: OrderPayload): Promise<{ orderId
   const orderId = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
   // Store order in localStorage for demo purposes
-  const orders = JSON.parse(localStorage.getItem('ALETWENDE_ORDERS') || '[]');
+  const orders = readStoredOrders();
   orders.push({
     ...orderPayload,
     orderId,
     status: 'pending',
     createdAt: new Date().toISOString()
   });
-  localStorage.setItem('ALETWENDE_ORDERS', JSON.stringify(orders));
+  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
   
   return { orderId, success: true };
 }
@@ -102,7 +120,7 @@ export function subscribeToOrderStatus(
  * Get order by ID
  */
 export function getOrderById(orderId: string): OrderPayload | null {
-  const orders = JSON.parse(localStorage.getItem('ALETWENDE_ORDERS') || '[]');
+  const orders = readStoredOrders();
   return orders.find((order: any) => order.orderId === orderId) || null;
 }
 
@@ -110,5 +128,5 @@ export function getOrderById(orderId: string): OrderPayload | null {
  * Get all orders
  */
 export function getAllOrders(): OrderPayload[] {
-  return JSON.parse(localStorage.getItem('ALETWENDE_ORDERS') || '[]');
+  return readStoredOrders();
 }
