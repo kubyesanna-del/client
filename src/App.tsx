@@ -66,21 +66,9 @@ function AppContent() {
   const [eta, setEta] = useState('3 mins');
   const [showRatingModal, setShowRatingModal] = useState(false);
 
-  // Trigger the browser's location permission dialog on first app load so GPS
-  // is ready before the user reaches any route page.
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        () => {}, // success — permissions now granted, useGeolocation hooks will pick it up
-        (err) => {
-          if (err.code === err.PERMISSION_DENIED) {
-            console.warn('Location permission denied');
-          }
-        },
-        { enableHighAccuracy: true }
-      );
-    }
-  }, []);
+  // Startup location permission, GPS detection, live position watching and
+  // throttled reverse geocoding are now owned by the global LocationProvider
+  // (wired in main.tsx). Pages read it via useGeolocation / useLocation.
 
   useEffect(() => {
     const rideId = localStorage.getItem('currentRideId');
