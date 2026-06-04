@@ -4,6 +4,8 @@
  * Zambia and South Africa
  */
 
+import { safeJson } from '../config/api';
+
 const GEOAPIFY_API_KEY = '8d0450d96b5748e89e46afaaf976f890';
 const GEOAPIFY_BASE_URL = 'https://api.geoapify.com/v1/geocode/autocomplete';
 
@@ -101,7 +103,11 @@ export const searchAddresses = async (
       throw new Error(`Geoapify API error: ${response.status}`);
     }
 
-    const data: GeoapifyResponse = await response.json();
+    const data = await safeJson<GeoapifyResponse>(response);
+
+    if (!data?.features?.length) {
+      return getRecentAddresses();
+    }
 
     // Transform Geoapify features to our address format
     const addresses: GeoapifyAddress[] = data.features.map((feature, index) => {
@@ -161,9 +167,9 @@ export const reverseGeocode = async (
       throw new Error(`Geoapify reverse geocode error: ${response.status}`);
     }
 
-    const data: GeoapifyResponse = await response.json();
+    const data = await safeJson<GeoapifyResponse>(response);
 
-    if (data.features.length === 0) {
+    if (!data?.features?.length) {
       return null;
     }
 

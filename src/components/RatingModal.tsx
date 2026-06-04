@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star } from 'lucide-react';
+import { safeJson } from '../config/api';
 
 interface RatingModalProps {
   isOpen: boolean;
@@ -89,7 +90,7 @@ export const RatingModal: React.FC<RatingModalProps> = ({
     if (!response.ok) {
       throw new Error('Failed to submit driver rating');
     }
-    return response.json();
+    return safeJson(response);
   };
 
   const submitStoreRating = async (storeRatingValue: number, storeFeedback: string) => {
@@ -106,7 +107,7 @@ export const RatingModal: React.FC<RatingModalProps> = ({
     if (!response.ok) {
       throw new Error('Failed to submit store rating');
     }
-    return response.json();
+    return safeJson(response);
   };
 
   const handleSubmit = async () => {

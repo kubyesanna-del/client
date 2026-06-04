@@ -9,6 +9,26 @@ export const API_BASE =
   'https://aletwend-render-backend.onrender.com';
 
 /**
+ * Safely parse a fetch Response as JSON.
+ *
+ * Reads the body as text first so an empty body (a 204, a cold-started backend,
+ * or an HTML error page) returns `null` instead of throwing the cryptic
+ * "SyntaxError: Unexpected end of input". Returns `null` for empty or
+ * unparseable bodies.
+ */
+export async function safeJson<T = any>(res: Response): Promise<T | null> {
+  const text = await res.text();
+  if (!text.trim()) {
+    return null;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Generic POST helper for API calls.
  *
  * Reads the response as text first and parses it defensively so an empty body
